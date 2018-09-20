@@ -46,3 +46,5 @@ plot for [s=0:words(series)-1:1] *datafile* index s using 3:xticlabels(2) title 
 ## mysql_binlog.gp
 
 Gnuplot file for plotting stacked a histogram showing database activity.
+
+![MySQL Binlog Histogram](binlog_histogram.png)

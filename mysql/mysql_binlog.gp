@@ -48,7 +48,7 @@ do for [style_num=1:words(colors):1] {
 }
 
 # Get the list of unique series names
-series_names=system("awk '{print $1}' 2018-09-16-ingest-plot.txt|uniq")
+series_names=system("awk '{print $1}' 2018-09-16-ingest-plot.dat|uniq")
 
 # Plot the data. Since data is vertical rather than horizontal we separate each
 # series with 2 blank lines and use "index" rather than "using x:y" to address it.
