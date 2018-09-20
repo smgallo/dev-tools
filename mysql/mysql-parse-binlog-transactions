@@ -1,0 +1,113 @@
+#!/bin/bash
+#
+# Parse the mysql binary logs and examine transaction and statement data. Dump a tab-delimited file
+# of summary data.
+#
+# See https://www.percona.com/blog/2015/01/20/identifying-useful-information-mysql-row-based-binary-logs/
+
+binlog_files=
+per_table_stats=0
+per_db_stats=0
+
+function show_help {
+cat <<HELP
+Usage $0 -b *binlog [-t] [-d]
+Where:
+    -b The binlog file to examine (may be specified multiple times).
+    -t Multiple statements on the same table are collapsed into a single summary entry.
+    -d Multiple contigous statements on the same database are collapsed int a single
+       summary entry.
+HELP
+}
+
+while getopts "h?b:td" opt; do
+    case "$opt" in
+        h|\?)
+            show_help
+            exit 0
+            ;;
+        b)  if [[ ! -r $OPTARG ]]; then echo "Can't read binlog file: $OPTARG"; fi
+            binlog_files="$binlog_file $OPTARG"
+            ;;
+        t)  per_table_stats=1
+            ;;
+        d)  per_db_stats=1
+            ;;
+    esac
+done
+
+if [[ 1 -eq $per_table_stats && 1 -eq $per_db_stats ]]; then
+    echo "Only specify -t OR -d but not both"
+    exit 1
+fi
+
+mysqlbinlog --base64-output=decode-rows -vv $binlog_files \
+| awk -v per_table_stats=$per_table_stats -v per_db_stats=$per_db_stats \
+'BEGIN {
+  stmt_type="";
+  stmt_count=0;
+  insert_count=0;
+  update_count=0;
+  delete_count=0;
+  commit_count=0;
+  # Continuation flag for logging individual entries
+  flag=0;
+  curr_table="";
+  prev_table="";
+  first_timestamp="";
+
+  # Display data file headers
+
+  if ( 1 == per_db_stats ) {
+    print "start_timestamp\tend_timestamp\tseconds\tdatabase\tstmt_count\tcommit_count";
+  } else if ( 1 == per_table_stats ) {
+    print "start_timestamp\tend_timestamp\ttable\tstmt_count\tinsert_count\tupdate_count\tdelete_count\tcommit_count";
+  } else {
+    print "timestamp\ttable\tstmt_type\tstmt_count";
+  }
+}
+{
+  # We have switched to a new table
+  if(match($0, /^#.*Table_map:.*mapped to number/)) {
+    # Note that we are adding the year "20" to the timestamp
+    current_timestamp = gensub(/^#([0-9]{2})([0-9]{2})([0-9]{2})/, "20\\1-\\2-\\3", "g", $1) " " $2;
+    # NF gives the number of fields in the row
+    curr_table=$(NF-4);
+    gsub(/`/, "", curr_table);
+    split(curr_table, a, ".");
+    curr_db=a[1];
+
+    # When displaying individual log entries, print the first part of the message and the rest
+    # once we see the end of the of the statement
+    if ( 0 == per_table_stats && 0 == per_db_stats ) {
+      printf current_timestamp "\t" curr_table;
+      flag=1;
+    } else {
+      if ( 1 == per_table_stats && prev_table != curr_table ) {
+        if ( prev_table != "" ) {
+          print first_timestamp "\t" current_timestamp "\t" prev_table "\t" stmt_count "\t" insert_count "\t" update_count "\t" delete_count "\t" commit_count;
+          commit_count=0; insert_count=0; update_count=0; delete_count=0; stmt_type=""; stmt_count=0; flag=0;
+        }
+        prev_table=curr_table;
+        first_timestamp=gensub(/^#([0-9]{2})([0-9]{2})([0-9]{2})/, "20\\1-\\2-\\3", "g", $1) " " $2;
+      } else if ( 1 == per_db_stats && prev_db != curr_db ) {
+        if ( prev_db != "" ) {
+          tmp_ts = current_timestamp; gsub(/(-|:)/, " ", tmp_ts);
+          t1 = mktime(tmp_ts);
+          tmp_ts = first_timestamp; gsub(/(-|:)/, " ", tmp_ts);
+          t2 = mktime(tmp_ts);
+          print first_timestamp "\t" current_timestamp "\t" (t1-t2) "\t" prev_db "\t" stmt_count "\t" commit_count;
+          commit_count=0; insert_count=0; update_count=0; delete_count=0; stmt_type=""; stmt_count=0; flag=0;
+        }
+        prev_db=curr_db;
+        first_timestamp=gensub(/^#([0-9]{2})([0-9]{2})([0-9]{2})/, "20\\1-\\2-\\3", "g", $1) " " $2;
+      }
+    }
+  }
+  else if (match($0, /(### INSERT INTO .*..*)/)) { insert_count=insert_count+1; stmt_type="INSERT"; stmt_count=stmt_count+1; }
+  else if (match($0, /(### UPDATE .*..*)/)) { update_count=update_count+1; stmt_type="UPDATE"; stmt_count=stmt_count+1; }
+  else if (match($0, /(### DELETE FROM .*..*)/)) { delete_count=delete_count+1; stmt_type="DELETE"; stmt_count=stmt_count+1; }
+  else if (match($0, /^(# at) /) && flag==1 && stmt_count>0) { print "\t" stmt_type "\t" stmt_count; stmt_type=""; stmt_count=0; }
+  else if (match($0, /^(COMMIT)/)) { commit_count=commit_count+1; }
+}'
+exit $?

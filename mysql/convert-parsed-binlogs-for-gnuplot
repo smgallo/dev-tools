@@ -1,0 +1,27 @@
+#!/bin/bash
+#
+# Collapse binlog data processed by "mysql-parse-binlog-transactions -d" on minute and database and
+# output in a format suitable for gnuplot.
+#
+# 1. Skip the first line
+# 2. Normalize timestamps to 1 minute granularity and print only datebase, time, and statement
+#    count fields.
+# 3. Sort by minute and database
+# 4. Sum up statements per minute per database.
+# 5. Gnuplot supports different X values in the same file by separating them into blocks separated
+#    by 2 blank lines and using "index" rather than "using" in the plot command.  Add an extra blank
+#    line when the database name changes.
+
+cat $* \
+    | tail -n +2 \
+    | awk -F'\t' '{sub(/:[0-9]{2}$/, ":00", $2); } { print $4"\t"$2"\t"log($5); }' \
+    | sort -k 1,1 \
+    | awk -F'\t' \
+'BEGIN {prev_db=""; prev_key=""; sum=0; }
+{
+#  gsub(/-|:/, " ", $2);
+#  key=$1 "\t" mktime($2);
+   key=$1 "\t" $2;
+  if ("" == prev_key) { prev_db=$1; prev_key=key; sum=$3; } else if (prev_key == key) { sum = sum + $3; } else { print prev_key "\t" sum; sum=$3; prev_key=key; }
+  if (prev_db != $1) { print "\n"; prev_db=$1; }
+}'
