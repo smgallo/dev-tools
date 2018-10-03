@@ -1,0 +1,24 @@
+[mysqld]
+
+port = 3306
+socket = /var/lib/mysql-master/mysql.sock
+pid-file        = /var/run/mysql-master/mysqld.pid
+basedir         = /usr
+datadir         = /var/lib/mysql-master
+tmpdir          = /tmp/mysql-master
+log-bin          = mysql-bin
+binlog-format    = row
+log-bin-trust-function-creators = ON
+replicate-do-db = db1
+replicate-do-db = db2
+log-slave-updates = OFF
+server-id = 1
+# Instead of skip-networking the default is now to listen only on
+# localhost which is more compatible and is not less secure.
+# Comment this line out if you need to connect remotely and use host=127.0.0.1
+# bind-address    = 127.0.0.1
+sql_mode=''
+
+# Variables to test
+# binlog_group_commit_sync_delay = 0
+# sync_binlog = 1

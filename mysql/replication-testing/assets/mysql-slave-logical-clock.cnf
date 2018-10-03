@@ -1,0 +1,20 @@
+# MySQL slave
+[mysqld]
+
+port = 3309
+socket = /var/lib/mysql-slave-logical-clock/mysql.sock
+pid-file        = /var/run/mysql-slave-logical-clock/mysqld.pid
+basedir         = /usr
+datadir         = /var/lib/mysql-slave-logical-clock
+tmpdir          = /tmp/mysql-slave-logical-clock
+#binlog-format     = row
+log-bin-trust-function-creators = ON
+log-slave-updates = OFF
+server-id = 4
+# Instead of skip-networking the default is now to listen only on
+# localhost which is more compatible and is not less secure.
+bind-address    = 127.0.0.1
+relay-log = mysqld-relay-bin
+sql_mode=''
+slave_parallel_workers=4
+slave_parallel_type=LOGICAL_CLOCK

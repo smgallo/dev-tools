@@ -1,0 +1,22 @@
+#!/bin/bash
+
+. $HOME/bin/mysql-dirs.env
+
+case "$1" in
+    start)
+        mysqld_safe --defaults-file=$MYSQL_CONF_DIR/mysql-master.cnf &
+        $HOME/bin/mariadb-wait-ready $! $MYSQL_CONF_DIR/mysql-master.cnf
+        mysqld_safe --defaults-file=$MYSQL_CONF_DIR/mysql-slave-default.cnf &
+        $HOME/bin/mariadb-wait-ready $! $MYSQL_CONF_DIR/mysql-slave-default.cnf
+        mysqld_safe --defaults-file=$MYSQL_CONF_DIR/mysql-slave-database.cnf &
+        $HOME/bin/mariadb-wait-ready $! $MYSQL_CONF_DIR/mysql-slave-database.cnf
+        mysqld_safe --defaults-file=$MYSQL_CONF_DIR/mysql-slave-logical-clock.cnf &
+        $HOME/bin/mariadb-wait-ready $! $MYSQL_CONF_DIR/mysql-slave-logical-clock.cnf
+        ;;
+    stop)
+        mysqladmin -S $MYSQL_DATA_DIR/mysql-master/mysql.sock shutdown
+        mysqladmin -S $MYSQL_DATA_DIR/mysql-slave-default/mysql.sock shutdown
+        mysqladmin -S $MYSQL_DATA_DIR/mysql-slave-database/mysql.sock shutdown
+        mysqladmin -S $MYSQL_DATA_DIR/mysql-slave-logical-clock/mysql.sock shutdown
+esac
+
