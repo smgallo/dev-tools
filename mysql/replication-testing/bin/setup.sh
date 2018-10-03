@@ -7,6 +7,16 @@
 
 . $HOME/bin/mysql-dirs.env
 
+# Use localhost if bind_address=127.0.0.1 (uses local socket), otherwise use 127.0.0.1
+# MASTER=localhost
+MASTER=127.0.0.1
+MASTER_PASSWD=
+
+if [[ -z $MASTER_PASSWD ]]; then
+    echo "Must set master password for replication"
+    exit 1
+fi
+
 # Disable the mysql apparmor profile (only needs to happen once)
 ln -s /etc/apparmor.d/usr.sbin.mysqld /etc/apparmor.d/disable/
 if [ 0 -eq $? ]; then
@@ -32,16 +42,6 @@ sudo -u mysql mysqld --defaults-file=$MYSQL_CONF_DIR/mysql-slave-database.cnf --
 sudo -u mysql mysqld --defaults-file=$MYSQL_CONF_DIR/mysql-slave-logical-clock.cnf --initialize-insecure
 
 $HOME/bin/services-replication start
-
-# Use localhost if bind_address=127.0.0.1 (uses local socket), otherwise use 127.0.0.1
-# MASTER=localhost
-MASTER=127.0.0.1
-MASTER_PASSWD=C4jt7ClvKFv9
-
-if [[ -z $MASTER_PASSWD ]]; then
-    echo "Must set master password for replication"
-    exit 1
-fi
 
 # Setup the replication
 mysql -S $MYSQL_DATA_DIR/mysql-master/mysql.sock -e "GRANT REPLICATION SLAVE ON *.* TO 'slavedb'@'127.0.0.1' IDENTIFIED BY '$MASTER_PASSWD';"
