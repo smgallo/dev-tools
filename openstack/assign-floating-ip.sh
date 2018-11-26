@@ -84,10 +84,34 @@ else
     IP=$floating_ip
 fi
 
-# Add this instance to the internal network (will assign a DHCP address)
-openstack server add network $SERVER_ID $INTERNAL_NETWORK
+# Find the list of internal subnets
+SUBNET_LIST=$(openstack network list --internal -f value -c Subnets)
+
+# Check that the server has a port on at least 1 internal subnet
+SERVER_SUBNETS=$(openstack port list --server '^'$server_name'$' -f value -c 'Fixed IP Addresses' | awk '
+{
+    match($0, "subnet_id='\''(.+)'\''", id);
+    print id[1];
+}
+')
+
+has_subnet=0
+for ss in $SERVER_SUBNETS; do
+    for sl in $SUBNET_LIST; do
+        if [[ $sl = $ss ]]; then
+            has_subnet=1
+            break 3
+        fi
+    done
+done
+
+# Add this instance to the internal network only if it is not already on an internal net (will
+# assign a DHCP address)
+if [ 0 = $has_subnet ]; then
+    openstack server add network $SERVER_ID $INTERNAL_NETWORK
+fi
 sleep 5
-# openstack server list --name '^'$server_name'$' --long -f value -c Networksa | grep $network_name
+
 # Remove the server from the external network to release the IP
 openstack server remove network $SERVER_ID $EXTERNAL_NETWORK
 # Addign the floating IP
