@@ -2,7 +2,10 @@
 #
 # Create a user on a remote host and optionally install their authorized keys
 # file and sudo access. Note: This script assumes that the user running the script
-# has password-less sudo access on the host.
+# has password-less sudo access on the host and that the sudoers file is set up to
+# allow members of the adm group sudo access:
+#
+# %adm ALL=(ALL) NOPASSWD:ALL
 
 function show_help {
 cat <<HELP
@@ -12,7 +15,7 @@ Where:
     -u Username to create
     -c Optional GCOS comment for user
     -a If set, copy the specified file into ~/.ssh/authorized_keys on the remote host
-    -s If set, add this user to the sudoers file
+    -s If set, grant this user sudoers access
 HELP
 }
 
@@ -33,7 +36,7 @@ while getopts "h?r:u:c:a:s" opt; do
             ;;
         c)  comment=$OPTARG
             ;;
-	r)  remote_host=$OPTARG
+        r)  remote_host=$OPTARG
             ;;
         s)  superuser=1
             ;;
@@ -117,30 +120,9 @@ fi
 if [ 1 -eq $superuser ]; then
     cat<<'SUDOERS' >>$script
 
-echo "Add $user to sudoers"
+echo "Add $user to sudoers (sudo is configured for all users in adm group)"
 
-sudoers_file=$(basename $sudoers_file_path)
-cp $sudoers_file_path /tmp/$sudoers_file
-
-cat<<SUDO >> /tmp/$sudoers_file
-
-# User rules for $user
-$user ALL=(ALL) NOPASSWD:ALL
-SUDO
-
-msg=$(visudo -c -f /tmp/$sudoers_file 2>&1)
-if [ 0 -eq $? ]; then
-    cp $sudoers_file_path ${sudoers_file_path}.bak
-    cp /tmp/$sudoers_file $sudoers_file_path
-    rm -f /tmp/$sudoers_file
-else
-    echo "WARNING: Error modifying sudoers file $sudoers_file"
-    echo $msg
-    echo
-    cat -n /tmp/$sudoers_file
-    rm -f /tmp/$sudoers_file
-    exit 1
-fi
+usermod -a -G adm $user
 
 SUDOERS
 fi
