@@ -15,7 +15,7 @@
  * The default end week formula is: =IF(0=$C6, $E6, $E6+$C6-1)
  */
 
-/* ----------------------------------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------------------------------
  * Create a custom menu item to enable coloring the timeline. We do not have permission to set cell
  * background values in a custom funtion but we do when initiated via a UI element.
  * ----------------------------------------------------------------------------------------------------
@@ -30,14 +30,11 @@ function onOpen()
  * Set the color of a cell based on the duration and the week under which it falls. We make the following
  * assumptions:
  * 1. The range of cells to be updated has been selected in the spreadsheet (active range).
- * 2. Column A contains the task name and the background color to be used for the timeline of this task
- * 3. The two columns immediately preceeding the active range contain the start and end weeks of the
+ * 2. The row immediately above the active range is a list of week numbers indicating the week under
+ *    which a cell falls.
+ * 3. The two columns immediately preceeding the active range contain the start and end days of the
  *    task relative to the start and end of the project.
- * 4. The 3rd column preceeding the active range contains the percent complete for the task.
- * 5. The 4th column preceeding the active range contains the number of weeks that the task will take
- *    to complete.
- * 6. The 5th column preceeding the active range contains the task type. No value indicates a regular
- *    task, "m" indicates a milestone, "-" indicates a parent task, and "s" indicates a subtask of a parent.
+ * 4. Milestones are tasks with 0 duration (start day = end day)
  * ----------------------------------------------------------------------------------------------------
  */
 
@@ -50,19 +47,22 @@ function setCellColor()
   var endRow = startRow + activeRange.getHeight() - 1;
   var startCol = activeRange.getColumn();
   var endCol = startCol + activeRange.getWidth() - 1;
- 
+
+  // The week numbers are listed one row above the active range. getValues() returns a 0-based 2-d array.
+  // var weekNumbers = sheet.getRange(startRow - 1, startCol, 1, activeRange.getWidth()).getValues()[0];
+
   // The start and end weeks for each task are the 2 columns before the active range.
   var startAndEndWeeks = sheet.getRange(startRow, startCol - 2, activeRange.getHeight(), 2).getValues();
-  
-  // The percent complete is 0 - 100 and is 3 columns before the active range
-  var percentComplete = sheet.getRange(startRow, startCol - 3, activeRange.getHeight(), 1).getValues();
-  
+
   // The duration is 4 columns before the active range
   var duration = sheet.getRange(startRow, startCol - 4, activeRange.getHeight(), 1).getValues();
-  
+
   // The task types are "m" for milestone, "-" for parent class, and "s" for subclass
   var taskTypes = sheet.getRange(startRow, startCol - 5, activeRange.getHeight(), 1).getValues();
-  
+
+  // The percent complete is 0 - 100 and is 3 columns before the active range
+  var percentComplete = sheet.getRange(startRow, startCol - 3, activeRange.getHeight(), 1).getValues();
+
   for ( var currentRow = startRow, rowIndex = 0; currentRow <= endRow; currentRow++, rowIndex++ ) {
     var startWeek = startAndEndWeeks[rowIndex][0]
     var endWeek = startAndEndWeeks[rowIndex][1];
@@ -109,15 +109,14 @@ function setCellColor()
 
 function printParentTaskBar(sheet, rowIndex, currentRow, endRow, startCol, endCol, startAndEndWeeks, taskTypes)
 {
-  var subTaskStartCol = endCol, subTaskNumCol = 0, numSubtasks = 0;
+  var subTaskStartCol = endCol, subTaskNumCol = 0;
   for ( subtaskIndex = rowIndex + 1; subtaskIndex <= endRow; subtaskIndex++ ) {
     // Be sure that we don't go off the end of our timeline
     if ( null == taskTypes[subtaskIndex] || 'S' != taskTypes[subtaskIndex].toString().toUpperCase() ) {
       break;
     }
     subTaskStartCol = Math.min(subTaskStartCol, startCol + startAndEndWeeks[subtaskIndex][0] - 1);
-    subTaskNumCol += (startAndEndWeeks[subtaskIndex][1] - startAndEndWeeks[subtaskIndex][0] + 1);
-    numSubtasks++;
+    subTaskNumCol = Math.max(startAndEndWeeks[subtaskIndex][1]);
   }
   if ( 1 == subTaskNumCol ) {
     taskRange = sheet.getRange(currentRow, subTaskStartCol, 1, subTaskNumCol).setValue("'<>").setFontWeight("bold");
@@ -129,5 +128,4 @@ function printParentTaskBar(sheet, rowIndex, currentRow, endRow, startCol, endCo
     taskRange = sheet.getRange(currentRow, subTaskStartCol + 1, 1, subTaskNumCol - 2).setValue("'==").setFontWeight("bold");
     taskRange = sheet.getRange(currentRow, subTaskStartCol + subTaskNumCol - 1, 1, 1).setValue("'=>").setFontWeight("bold");
   }
-}  // printParentTaskBar()
-
+}
