@@ -116,8 +116,12 @@ function printParentTaskBar(sheet, rowIndex, currentRow, endRow, startCol, endCo
       break;
     }
     subTaskStartCol = Math.min(subTaskStartCol, startCol + startAndEndWeeks[subtaskIndex][0] - 1);
-    subTaskNumCol = Math.max(startAndEndWeeks[subtaskIndex][1]);
+    subTaskNumCol = Math.max(subTaskNumCol, startAndEndWeeks[subtaskIndex][1]);
   }
+
+  // Adjust the number of columns to account for tasks that don't start at week 1
+  subTaskNumCol -= (subTaskStartCol - startCol);
+
   if ( 1 == subTaskNumCol ) {
     taskRange = sheet.getRange(currentRow, subTaskStartCol, 1, subTaskNumCol).setValue("'<>").setFontWeight("bold");
   } else if ( 2 == subTaskNumCol ) {
