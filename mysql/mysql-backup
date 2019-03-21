@@ -1,0 +1,101 @@
+#!/bin/bash
+#
+# MySQL backup script
+#
+# From a database running on the local host, back up individual databases except those which are in
+# the exclude list. Log sanity checks on backed-up data.
+
+USER='backer'
+PASSWD='put-your-password-here'
+HOSTNAME='127.0.0.1' # Using "localhost" will attempt to use the local socket
+LOG=/var/log/mysql-backup.log
+MYSQL_DUMP=/usr/bin/mysqldump
+DUMP_DIR=/projects/xdtas/mysqldumps/tas-db2
+
+# Regex for excluding some databases from backup
+EXCLUDE='^information_schema$|^performance_schema$|^sys$'
+
+# List of all MySQL ports to back up. This allows us to back up multiple servers on the same
+# host such as multiple replicatiomn slaves.
+MYSQL_PORT_LIST=( 3306 3307 3308 )
+
+# Log messages to a file with a timestamp
+function log {
+    echo -e "["`date "+%Y-%m-%d %H:%M:%S"`"] $1" >>$LOG
+}
+
+echo >>$LOG 
+log "Starting MySQL backup"
+
+# Make sure that the log file is readable by all
+chmod 0644 $LOG
+ 
+# Create the dump directory if it doesn't already exist
+ 
+if [ ! -d $DUMP_DIR ]; then
+    /bin/mkdir -v -p $DUMP_DIR &>$LOG
+    if [ 0 -ne $? ]; then
+        log "Could not create dump directory '$DUMP_DIR'"
+        exit 1
+    fi
+fi
+
+# Create a defaults file for credentials
+# NOTE: Be aware that a ~/.my.cnf file will override these values if it exists!
+
+CREDENTIALS_FILE=$(tempfile -d /tmp -p mysql -s .cnf 2>&1)
+if [ 0 -ne $? ]; then
+    log "Error creating credentials file: $CREDENTIALS_FILE"
+    exit 1
+fi
+
+cat <<CREDENTIALS >$CREDENTIALS_FILE
+[client]
+host=$HOSTNAME
+user=$USER
+password=$PASSWD
+CREDENTIALS
+
+# Cleanup on exit
+trap "{ rm -f $CREDENTIALS_FILE; }" EXIT
+
+# Backup servers on all ports in the list
+ 
+for port in ${MYSQL_PORT_LIST[@]}; do
+
+    echo -e "["`date "+%Y-%m-%d %H:%M:%S"`"] Backing up mysql server on port $port" >>$LOG
+
+    # Ensure that MySQL daemon is running
+    mysqladmin --defaults-extra-file=$CREDENTIALS_FILE -P $port status | grep -qi "Uptime" &>>$LOG
+
+    if [ 0 -ne $? ]; then
+        log "ERROR Mysql not running on port $port"
+        continue
+    fi
+ 
+    # Retrieve list of MySQL databases to backup
+    DB_LIST=$(mysql --defaults-extra-file=$CREDENTIALS_FILE -P ${port} -N -e "show databases" | egrep -v "$EXCLUDE" | tr "\n" " ")
+
+    if [ 0 -ne $? ]; then
+        log "ERROR Could not retrieve database list from port $port"
+        continue
+    fi
+
+    # Perform the backups
+
+    for db in $DB_LIST; do
+        FILE="$DUMP_DIR/${db}-dump-${port}.sql"
+        log "Backing up '$db' on port $port to $FILE"
+        $MYSQL_DUMP --defaults-extra-file=$CREDENTIALS_FILE -P ${port} --routines --triggers --opt --databases $db 2>>$LOG >$FILE
+        if [ 0 -ne $? ]; then
+            log "ERROR Could not dump database '$db' on port $port"
+        else
+            /bin/chmod 640 $FILE 2>>$LOG
+            ls -lh $FILE >>$LOG
+        fi
+    done
+done
+
+log "Finished MySQL backup"
+
+exit 0
