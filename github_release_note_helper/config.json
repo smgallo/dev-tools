@@ -1,0 +1,7 @@
+{
+    "github": {
+        "access_token": "your-access-token-here",
+        "org": "ubccr",
+        "repo": "xdmod"
+    }
+}
