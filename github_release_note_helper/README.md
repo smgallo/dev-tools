@@ -30,6 +30,7 @@ and display the information in a variety of formats.
         user - Generate a PR summary grouped by GitHub user
         category - Generate a PR summary grouped by category
         relnotes - Generate release notes in markdown format
+        xdmod-relnotes - XDMoD-specific formatting for release notes
         changelog - Generate a changelog suitable for inclusion in an RPM spec file
 
     -m, --merge-status (default: merged)
@@ -40,6 +41,9 @@ and display the information in a variety of formats.
 
     -O, --github-org (default: )
     GitHub organization to query. This value can be specified in the configurationfile or command line.
+
+    -q, --quiet
+    Do not display progress information, useful when piping output to another program.
 
     -r, --github-repo (default: )
     GitHub repository to query. This value can be specified in the configurationfile or command line.
