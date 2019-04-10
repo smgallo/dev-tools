@@ -190,9 +190,11 @@ $client = new Github\Client();
 
 if ( isset($config['github']['access_token']) ) {
     logger("Authenticating to GitHub");
-    $token = ( isset($config['github']['access_token']) ? $config['github']['access_token'] : null );
+    $token = null;
     if ( false !== ($token = getenv('GITHUB_ACCESS_TOKEN')) ) {
         logger("Using access token from GITHUB_ACCESS_TOKEN environment variable");
+    } else {
+        $token = $config['github']['access_token'];
     }
     $client->authenticate($token, Github\Client::AUTH_HTTP_TOKEN);
 }
@@ -340,8 +342,33 @@ switch ( $options['output-format'] ) {
     case 'relnotes':
         summary_for_relnotes($outFd, $prSummaryList);
         break;
+    case 'xdmod-relnotes':
+        summary_for_relnotes(
+            $outFd,
+            $prSummaryList,
+            array(
+                'tag'      => '###',
+                'category' => '-',
+                'title'    => '    -',
+                'body'     => '        -',
+                'category-spacer' => ''
+            )
+        );
+        break;
     case 'changelog':
-        summary_for_specfile($outFd, $prSummaryList);
+        // summary_for_specfile($outFd, $prSummaryList);
+        summary_for_relnotes(
+            $outFd,
+            $prSummaryList,
+            array(
+                'tag'      => '-',
+                'category' => '    -',
+                'title'    => '        -',
+                'body'     => '            -',
+                'tag-spacer'      => '',
+                'category-spacer' => ''
+            )
+        );
         break;
     default:
     case 'user':
@@ -394,6 +421,7 @@ and display the information in a variety of formats.
         user - Generate a PR summary grouped by GitHub user
         category - Generate a PR summary grouped by category
         relnotes - Generate release notes in markdown format
+        xdmod-relnotes - XDMoD-specific formatting for release notes
         changelog - Generate a changelog suitable for inclusion in an RPM spec file
 
     -m, --merge-status (default: {$options['merge-status']})
@@ -404,6 +432,9 @@ and display the information in a variety of formats.
 
     -O, --github-org (default: {$options['github-org']})
     GitHub organization to query. This value can be specified in the configurationfile or command line.
+
+    -q, --quiet
+    Do not display progress information, useful when piping output to another program.
 
     -r, --github-repo (default: {$options['github-repo']})
     GitHub repository to query. This value can be specified in the configurationfile or command line.
@@ -529,15 +560,36 @@ function summary_by_category($outFd, $prSummaryList)
 }
 
 /**
- * Display a summary of PRs suitable for inclusion in XDMoD release notes.
+ * Display a markdown summary of PRs suitable for inclusion in release notes. The format can be
+ * controlled by using the $prefixOverrides array.
  *
  * @param resource $outFd Output filehandle
  * @param array $prSummaryList List of PRs
+ * @param array $prefixOverrides Prefixes to use for various parts of the release notes
  */
 
-function summary_for_relnotes($outFd, $prSummaryList)
+function summary_for_relnotes($outFd, $prSummaryList, array $prefixOverrides = array())
 {
-    global $tagToVisualMap;
+    global $tagToVisualMap, $options;
+
+    // Default prefixes to use when writing the release notes
+
+    $prefixes = array(
+        'tag'      => '#',
+        'category' => '##',
+        'title'    => '-',
+        'body'     => '    -',
+        'tag-spacer'      => "\n",
+        'category-spacer' => "\n"
+    );
+
+    // Apply any overrides
+
+    foreach ( $prefixOverrides as $key => $value ) {
+        if ( array_key_exists($key, $prefixes) ) {
+            $prefixes[$key] = $value;
+        }
+    }
 
     // New Features, Enhancements, Bug Fixes
     $orderBy = 'category';
@@ -555,62 +607,26 @@ function summary_for_relnotes($outFd, $prSummaryList)
         array()
     );
 
+    if ( 'changelog' == $options['output-format'] ) {
+        fwrite($outFd, sprintf("* %s\n", $options['changelog-desc']));
+    }
+
     foreach ( $summary as $tag => $categoryList ) {
         fwrite(
             $outFd,
-            sprintf("# %s\n", ( array_key_exists($tag, $tagToVisualMap) ? $tagToVisualMap[$tag] : ucwords($tag) ))
+            sprintf("%s %s\n", $prefixes['tag'], ( array_key_exists($tag, $tagToVisualMap) ? $tagToVisualMap[$tag] : ucwords($tag) ))
         );
-        fwrite($outFd, "\n");
+        fwrite($outFd, $prefixes['tag-spacer']);
         foreach ( $categoryList as $category => $prList ) {
-            fwrite($outFd, sprintf("## %s\n", $category));
-            fwrite($outFd, "\n");
+            fwrite($outFd, sprintf("%s %s\n", $prefixes['category'], $category));
+            fwrite($outFd, $prefixes['category-spacer']);
             foreach ( $prList as $pr ) {
-                fwrite($outFd, sprintf("- %s (PR #%d)\n", $pr['title'], $pr['number']));
+                fwrite($outFd, sprintf("%s %s (PR #%d)\n", $prefixes['title'], $pr['title'], $pr['number']));
                 if ( null !== $pr['body'] ) {
-                    fwrite($outFd, sprintf("    - %s\n", $pr['body']));
+                    fwrite($outFd, sprintf("%s %s\n", $prefixes['body'], $pr['body']));
                 }
             }
-            fwrite($outFd, "\n");
+            fwrite($outFd, $prefixes['tag-spacer']);
         }
     }
 }
-
-/**
- * Generate a changelog suitable for inclusion in an RPM spec file.
- *
- * @param resource $outFd Output filehandle
- * @param array $prSummaryList List of PRs
- */
-
-function summary_for_specfile($outFd, $prSummaryList)
-{
-    global $tagToVisualMap, $options;
-
-    // Order the list of PRs by tag and then category
-
-    $summary = array_reduce(
-        $prSummaryList,
-        function($carry, $item) {
-            $category = $item['category'][0];
-            $tag = ( 0 == count($item['tags']) ? "Uncategorized" : $item['tags'][0] );
-            $carry[$tag][$category][] = $item;
-            return $carry;
-        },
-        array()
-    );
-
-    fwrite($outFd, sprintf("* %s\n", $options['changelog-desc']));
-    foreach ( $summary as $tag => $categoryList ) {
-        fwrite(
-            $outFd,
-            sprintf("- %s\n", ( array_key_exists($tag, $tagToVisualMap) ? $tagToVisualMap[$tag] : ucwords($tag) ))
-        );
-        foreach ( $categoryList as $category => $prList ) {
-            fwrite($outFd, sprintf("    - %s\n", $category));
-            foreach ( $prList as $pr ) {
-                fwrite($outFd, sprintf("        - %s (PR #%d)\n", $pr['title'], $pr['number']));
-            }
-        }
-    }
-}
-
