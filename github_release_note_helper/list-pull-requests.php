@@ -47,6 +47,8 @@ $options = array(
     'changelog-desc' => null,
     // Configuration file to read from
     'config-file' => __DIR__ . '/config.json',
+    // Display the succinct PR number rather than the URL for each PR
+    'pr-base-url' => null,
     // GitHub organization to query
     'github-org' => null,
     // GitHub repository to query
@@ -79,6 +81,7 @@ $cliOptions = array(
     'o:'  => 'output-file:',
     'O:'  => 'github-org:',
     'q'   => 'quiet',
+    'p:'  => 'pr-base-url:',
     'r:'  => 'github-repo:',
     's:'  => 'changelog-desc:',
     'S:'  => 'state:',
@@ -123,6 +126,11 @@ foreach ($args as $arg => $value) {
         case 'O':
         case 'github-org':
             $options['github-org'] = $value;
+            break;
+
+        case 'p':
+        case 'pr-base-url':
+            $options['pr-base-url'] = $value;
             break;
 
         case 'q':
@@ -433,6 +441,10 @@ and display the information in a variety of formats.
     -O, --github-org (default: {$options['github-org']})
     GitHub organization to query. This value can be specified in the configurationfile or command line.
 
+    -p, --pr-base-url
+    Rather than displaying the succinct PR number, display the URL to the GitHub PR page using this base
+    URL and the PR number.
+
     -q, --quiet
     Do not display progress information, useful when piping output to another program.
 
@@ -621,7 +633,11 @@ function summary_for_relnotes($outFd, $prSummaryList, array $prefixOverrides = a
             fwrite($outFd, sprintf("%s %s\n", $prefixes['category'], $category));
             fwrite($outFd, $prefixes['category-spacer']);
             foreach ( $prList as $pr ) {
-                fwrite($outFd, sprintf("%s %s (PR #%d)\n", $prefixes['title'], $pr['title'], $pr['number']));
+                if ( null === $options['pr-base-url'] ) {
+                    fwrite($outFd, sprintf("%s %s (PR #%d)\n", $prefixes['title'], $pr['title'], $pr['number']));
+                } else {
+                    fwrite($outFd, sprintf("%s %s (%s/%d)\n", $prefixes['title'], $pr['title'], $options['pr-base-url'], $pr['number']));
+                }
                 if ( null !== $pr['body'] ) {
                     fwrite($outFd, sprintf("%s %s\n", $prefixes['body'], $pr['body']));
                 }
