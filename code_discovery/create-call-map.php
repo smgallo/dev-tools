@@ -14,6 +14,7 @@
 $options = array(
     'config-file' => null,
     'exclude-def-pattern' => array(),
+    'exclude-self-references' => false,
     'callmap-file' => 'callmap.out',
     'definitions-only' => false,
     'not-called-file' => 'not-called.out',
@@ -34,6 +35,7 @@ $cliOptions = array(
     'm:' => 'callmap-file:',
     'n:' => 'not-called-file:',
     'q'  => 'quiet',
+    'r'  => 'exclude-self-references',
     's:' => 'source-path-prefix:',
     't:' => 'tags-file:',
     'x:' => 'exclude-ref-pattern'
@@ -83,6 +85,11 @@ foreach ($args as $arg => $value) {
             $options['quiet'] = true;
             break;
 
+        case 'r':
+        case 'exclude-self-references':
+            $options['exclude-self-references'] = true;
+            break;
+
         case 's':
         case 'source-path-prefix':
             // Merge array because long and short options are grouped separately
@@ -120,6 +127,10 @@ if ( null !== $options['config-file'] ) {
             $options[$key] = $value;
         }
     }
+}
+
+if ( ! is_readable($options['tags-file']) ) {
+    usage_and_exit(sprintf("Unable to read tags file: %s", $options['tags-file']));
 }
 
 $definedFunctions = array();
@@ -266,6 +277,9 @@ foreach ( $definedFunctions as $name => $functionInfo ) {
     }
 
     foreach ( $functionInfo['matches'] as $file => $matches ) {
+        if ( $options['exclude-self-references'] && $file == $def['file'] ) {
+            continue;
+        }
         fwrite($callMapFd, sprintf("    %s\n", $file));
         foreach ( $matches as $match ) {
             fwrite($callMapFd, sprintf("        %d: %s\n", $match['line'], $match['code']));
@@ -326,8 +340,12 @@ ctags -R -o php.tags --exclude=.git --exclude=vendor --exclude=.diff --exclude=l
     -q, --quiet
     Do not display the list of functions as they are processed.
 
+    -r, --exclude-self-references
+    Do not report references to a function in the same file as the definition. This is useful for
+    determining when a function or method is called outside of a class definition.
+
     -s, --source-path-prefix <STRING>
-    The path in the ctags file must start with this string. May be used multiple times.
+    Files to be (recursively) examined must start with this string. May be used multiple times.
 
     -t, --tags-file <FILE>
     Path to the ctags file used to determine function definitions.

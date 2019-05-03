@@ -32,6 +32,11 @@ exclude-def-pattern[] = '/^addTable$/'
 
 ```
 
+Examples:
+```
+php create-call-map.php -c create-call-map.config -t php.tags -s classes/User/Elements/QueryDescripter
+```
+
 Two files are generated: (1) a call map containing the function definition and all instances found in
 the code base and (2) a file containing functions that were not called. Note that the list of
 functions not called will be sensitive to the execution directory since `git grep` searches relative
@@ -103,8 +108,12 @@ potential function calls so multiple functions with the same name may result in 
     -q, --quiet
     Do not display the list of functions as they are processed.
 
+    -r, --exclude-self-references
+    Do not report references to a function in the same file as the definition. This is useful for
+    determining when a function or method is called outside of a class definition.
+
     -s, --source-path <STRING>
-    Path to be examined (recursively). May be used multiple times.
+    Files to be (recursively) examined must start with this string. May be used multiple times.
 
     -t, --tags-file <FILE>
     Path to the ctags file used to determine function definitions.
