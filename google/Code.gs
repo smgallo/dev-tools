@@ -15,7 +15,7 @@
  * The default end week formula is: =IF(0=$C6, $E6, $E6+$C6-1)
  */
 
-/* ---------------------------------------------------------------------------------------------------
+/* ----------------------------------------------------------------------------------------------------
  * Create a custom menu item to enable coloring the timeline. We do not have permission to set cell
  * background values in a custom funtion but we do when initiated via a UI element.
  * ----------------------------------------------------------------------------------------------------
@@ -51,17 +51,19 @@ function setCellColor()
   // The week numbers are listed one row above the active range. getValues() returns a 0-based 2-d array.
   // var weekNumbers = sheet.getRange(startRow - 1, startCol, 1, activeRange.getWidth()).getValues()[0];
 
-  // The start and end weeks for each task are the 2 columns before the active range.
+  // The start and end weeks for each task are the 3 columns before the active range.
   var startAndEndWeeks = sheet.getRange(startRow, startCol - 2, activeRange.getHeight(), 2).getValues();
+  var startAndEndWeeks = sheet.getRange(startRow, startCol - 3, activeRange.getHeight(), 2).getValues();
 
   // The duration is 4 columns before the active range
   var duration = sheet.getRange(startRow, startCol - 4, activeRange.getHeight(), 1).getValues();
 
   // The task types are "m" for milestone, "-" for parent class, and "s" for subclass
   var taskTypes = sheet.getRange(startRow, startCol - 5, activeRange.getHeight(), 1).getValues();
-
-  // The percent complete is 0 - 100 and is 3 columns before the active range
+  
+  // The percent complete is 0 - 100 and is 1 columns before the active range
   var percentComplete = sheet.getRange(startRow, startCol - 3, activeRange.getHeight(), 1).getValues();
+  var percentComplete = sheet.getRange(startRow, startCol - 1, activeRange.getHeight(), 1).getValues();
 
   for ( var currentRow = startRow, rowIndex = 0; currentRow <= endRow; currentRow++, rowIndex++ ) {
     var startWeek = startAndEndWeeks[rowIndex][0]
@@ -70,20 +72,20 @@ function setCellColor()
     if ( "" == startWeek || isNaN(Number(startWeek)) || "" == endWeek || isNaN(Number(endWeek)) ) {
       throw new Error("Inavlid start ('" + startWeek + "') or end ('" + endWeek + "') week: must be an integer");
     }
-    
+
     var taskStartCol = (startCol + startWeek - 1)
     var taskNumCol = (endWeek - startWeek + 1);
-    
+
     // Clear any existing timeline for this row
-    
+
     sheet.getRange(currentRow, startCol, 1, activeRange.getWidth()).clearContent().setFontWeight("normal").setBackground("#ffffff");
-    
+
     // Determine the range based on the start and end weeks (round down). The cells are offset by the active region.
     var taskRange = sheet.getRange(currentRow, taskStartCol, 1, taskNumCol);
     var numCellsMarkedComplete = ( percentComplete[rowIndex] > 0 ? Math.floor(percentComplete[rowIndex]/100 * taskNumCol) : 0 );
 
     // Use the task type column to determine what to display
-    
+
     if ( 'M' == taskTypes[rowIndex].toString().toUpperCase() ) {
       // Milestone
       taskRange.setValue("X").setFontWeight("bold");
@@ -99,7 +101,7 @@ function setCellColor()
       }
     }
   }
- 
+
 }  // setCellColor()
 
 /* ----------------------------------------------------------------------------------------------------
@@ -133,3 +135,4 @@ function printParentTaskBar(sheet, rowIndex, currentRow, endRow, startCol, endCo
     taskRange = sheet.getRange(currentRow, subTaskStartCol + subTaskNumCol - 1, 1, 1).setValue("'=>").setFontWeight("bold");
   }
 }
+
