@@ -42,6 +42,8 @@ SELECT 100*(COUNT_STAR/@total) AS PCT_USAGE FROM test.mts_summary_trx;
 
 ## Using sysbench with an OLTP workload
 
+See [sysbench](https://github.com/akopytov/sysbench).
+
 ```
 sysbench --mysql-socket=/var/lib/mysql-master/mysql.sock --mysql-user=root --mysql-db=db1 --threads=20 --events=500000 /usr/share/sysbench/oltp_insert.lua --mysql_storage_engine=myisam --tables=10 run
 ```
